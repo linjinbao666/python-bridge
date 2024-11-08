@@ -1,54 +1,49 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Sep 29 20:43:35 2024
-
-@author: yuanmeng
-"""
-
+from flask import Flask, request, jsonify
 import pandas as pd
 import numpy as np
 
-# 读取Excel文件
-data = pd.read_excel('/home/amrom/ppp/a.xlsx', header=1)
-# 将DataFrame转换为二维数组
-data1 = data.iloc[:, 1:]  # 1 表示第二列的索引，冒号表示选择所有行
-data2 = data1.values.astype(np.float64)
+app = Flask(__name__)
 
+@app.route('/calculate', methods=['POST'])
+def calculate():
+    # 获取 POST 请求中的 JSON 数据
+    data_dict = request.get_json()
 
+    # 将 JSON 数据加载为 Pandas DataFrame
+    data = pd.DataFrame(data_dict)
 
-# 计算各指标均值
-mean_values = np.mean(data2, axis=0)
+    # 移除第一列（地区），仅保留数值列
+    data2 = data.iloc[:, 1:].values.astype(np.float64)
 
-# 计算各指标标准差
-std_values = np.std(data2, axis=0)
+    # 计算统计量和权重
+    mean_values = np.mean(data2, axis=0)
+    std_values = np.std(data2, axis=0)
+    cv = std_values / mean_values
+    cv = np.where(mean_values == 0, 0, cv)
+    cv_sum = cv.sum()
+    weights = cv / cv_sum
 
-# 计算变异系数（标准差/均值）
-cv = std_values / mean_values
+    # 定义结果
+    result = {
+        "均值": mean_values.tolist(),
+        "标准差": std_values.tolist(),
+        "变异系数": cv.tolist(),
+        "权重": weights.tolist()
+    }
 
-# 避免除以零的错误
-cv = np.where(mean_values == 0, 0, cv)
+    # 计算每个样本的综合评分值A开平方后的结果
+    def calculate_A_sqrt_for_rows(data, weights):
+        A_squares = np.sum((data * weights) ** 2, axis=1)
+        A_sqrts = np.sqrt(A_squares)
+        return A_sqrts
 
-# 计算变异系数总和
-cv_sum = cv.sum()
+    # 调用函数
+    A_sqrts = calculate_A_sqrt_for_rows(data2, weights)
+    result["每个样本的综合评分值A开平方后的结果"] = A_sqrts.tolist()
 
-# 计算权重
-weights = cv / cv_sum
+    # 返回 JSON 格式的结果
+    return jsonify(result)
 
-print("均值：", mean_values)
-print("标准差：", std_values)
-print("变异系数：", cv)
-print("权重：", weights)
+if __name__ == '__main__':
+    app.run(debug=True,host='0.0.0.0', port=35000)
 
-def calculate_A_sqrt_for_rows(data, weights):  
-      
-    # 计算每个样本的加权平方和  
-    A_squares = np.sum((data2 * weights) ** 2, axis=1)  
-    # 对每个结果开平方  
-    A_sqrts = np.sqrt(A_squares)  
-      
-    return A_sqrts  
-  
-# 调用函数  
-A_sqrts = calculate_A_sqrt_for_rows(data, weights) 
-
-print(f"每个样本的综合评分值A开平方后的结果为: {A_sqrts}")

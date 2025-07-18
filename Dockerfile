@@ -1,9 +1,4 @@
-i# Use official Python 3 image
 FROM python:3.9-slim
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
 
 WORKDIR /app
 
